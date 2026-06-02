@@ -224,6 +224,10 @@ async def post_init(app):
     await app.bot.set_my_commands([
         BotCommand("hisobot", "📊 Kunlik hisobot"),
     ])
+    # Scheduler event loop ichida ishga tushiriladi
+    scheduler = AsyncIOScheduler(timezone=TASHKENT_TZ)
+    scheduler.add_job(send_daily_report, trigger='cron', hour=21, minute=0, args=[app])
+    scheduler.start()
 
 
 def main():
@@ -232,11 +236,6 @@ def main():
     app.add_handler(MessageHandler(filters.ChatType.GROUPS, handle_message))
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_handler(CommandHandler("hisobot", hisobot_command))
-
-    # Har kuni soat 21:00 Toshkent vaqtida
-    scheduler = AsyncIOScheduler(timezone=TASHKENT_TZ)
-    scheduler.add_job(send_daily_report, trigger='cron', hour=21, minute=0, args=[app])
-    scheduler.start()
 
     app.run_polling()
 
