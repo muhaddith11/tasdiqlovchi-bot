@@ -46,34 +46,36 @@ def set_group_chat_id(chat_id):
 
 def get_kunlik_tushum():
     try:
-        # Kesh o'chirish uchun har safar yangi URL
         url = ONEDRIVE_URL + f"&nocache={int(time.time())}"
-        r = requests.get(url, timeout=30, headers={"Cache-Control": "no-cache", "Pragma": "no-cache"})
+        r = requests.get(url, timeout=30)
         wb = openpyxl.load_workbook(io.BytesIO(r.content), data_only=True)
-        ws = wb.worksheets[0]  # Реестр varag'i
 
-        rows = list(ws.iter_rows(min_row=6, max_row=12, min_col=5, max_col=6, values_only=True))
+        # Bugungi sana (Toshkent vaqti)
+        today = datetime.datetime.now(TASHKENT_TZ).date()
 
-        sana = rows[1][1]
-        if isinstance(sana, datetime.datetime):
-            sana_str = sana.strftime("%d.%m.%Y")
-        else:
-            sana_str = str(sana) if sana else "—"
+        # Har bir varaqdan bugungi to'lovlarni yig'amiz
+        sheets = ['Салом сити-1', 'Салом сити-2', 'МЖК-1', 'МЖК-2']
+        results = {}
 
-        items = []
-        for row in rows[2:6]:
-            name = str(row[0] or "").capitalize()
-            val = row[1] or 0
-            items.append((name, val))
+        for sheet_name in sheets:
+            ws = wb[sheet_name]
+            total = 0
+            for row in ws.iter_rows(values_only=True):
+                date_cell = row[8] if len(row) > 8 else None   # I ustun - sana
+                amount_cell = row[9] if len(row) > 9 else None  # J ustun - summa
+                if isinstance(date_cell, datetime.datetime) and date_cell.date() == today:
+                    total += (amount_cell or 0)
+            results[sheet_name] = total
 
-        jami = rows[6][1] or 0
+        jami = sum(results.values())
+        today_str = today.strftime("%d.%m.%Y")
 
         text = (
             f"📊 Кунлик тушум\n"
-            f"📅 Сана: {sana_str}\n"
+            f"📅 Сана: {today_str}\n"
             f"{'─' * 30}\n"
         )
-        for name, val in items:
+        for name, val in results.items():
             text += f"▪️ {name:<18} {val:>10,.0f}\n"
         text += (
             f"{'─' * 30}\n"
