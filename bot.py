@@ -200,7 +200,7 @@ async def post_init(app):
 def main():
     app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
 
-    app.add_handler(MessageHandler(filters.ChatType.GROUPS, handle_message))
+    app.add_handler(MessageHandler(filters.ChatType.GROUPS & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_handler(CommandHandler("hisobot", hisobot_command))
 
