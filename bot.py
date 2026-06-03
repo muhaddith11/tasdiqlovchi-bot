@@ -180,12 +180,8 @@ async def hisobot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def send_daily_report(context: ContextTypes.DEFAULT_TYPE):
-    group_chat_id = get_group_chat_id()
-    if not group_chat_id:
-        logging.warning("Guruh ID topilmadi!")
-        return
     text = get_kunlik_tushum()
-    await context.bot.send_message(chat_id=group_chat_id, text=text)
+    await context.bot.send_message(chat_id=ADMIN_ID, text=text)
 
 
 # ─── Asosiy ──────────────────────────────────────────────────────────────────
