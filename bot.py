@@ -5,6 +5,7 @@ import io
 import json
 import os
 import datetime
+import time
 import pytz
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import Application, MessageHandler, CallbackQueryHandler, CommandHandler, filters, ContextTypes
@@ -45,7 +46,9 @@ def set_group_chat_id(chat_id):
 
 def get_kunlik_tushum():
     try:
-        r = requests.get(ONEDRIVE_URL, timeout=30)
+        # Kesh o'chirish uchun har safar yangi URL
+        url = ONEDRIVE_URL + f"&nocache={int(time.time())}"
+        r = requests.get(url, timeout=30, headers={"Cache-Control": "no-cache", "Pragma": "no-cache"})
         wb = openpyxl.load_workbook(io.BytesIO(r.content), data_only=True)
         ws = wb.worksheets[0]  # Реестр varag'i
 
