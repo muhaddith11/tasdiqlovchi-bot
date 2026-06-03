@@ -190,10 +190,10 @@ async def post_init(app):
     await app.bot.set_my_commands([
         BotCommand("hisobot", "Kunlik hisobot"),
     ])
-    # Har kuni soat 21:00 Toshkent vaqtida (JobQueue - ichki, xatosiz)
+    # Har kuni soat 21:00 Toshkent = 16:00 UTC
     app.job_queue.run_daily(
         send_daily_report,
-        time=datetime.time(hour=21, minute=0, tzinfo=TASHKENT_TZ)
+        time=datetime.time(hour=16, minute=0, tzinfo=pytz.utc)
     )
 
 
