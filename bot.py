@@ -241,17 +241,21 @@ async def chatid_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def hisobot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = await update.message.reply_text("⏳ Yuklanmoqda...")
-    await msg.edit_text(get_kunlik_tushum())
-    for m in get_bugungi_tulumlar():
+    # 1. Bugungi to'lovlar
+    messages = get_bugungi_tulumlar()
+    await msg.edit_text(messages[0])
+    for m in messages[1:]:
         await update.message.reply_text(m)
+    # 2. Kunlik tushum
+    await update.message.reply_text(get_kunlik_tushum())
 
 
 async def send_daily_report(context: ContextTypes.DEFAULT_TYPE):
-    # 1. Kunlik tushum jadvali
-    await context.bot.send_message(chat_id=ADMIN_ID, text=get_kunlik_tushum())
-    # 2. Bugungi to'lovlar - har bir varaq alohida xabar
+    # 1. Bugungi to'lovlar - har bir varaq alohida xabar
     for msg in get_bugungi_tulumlar():
         await context.bot.send_message(chat_id=ADMIN_ID, text=msg)
+    # 2. Kunlik tushum jadvali
+    await context.bot.send_message(chat_id=ADMIN_ID, text=get_kunlik_tushum())
 
 
 # ─── Asosiy ──────────────────────────────────────────────────────────────────
