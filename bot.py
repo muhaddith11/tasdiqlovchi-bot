@@ -97,6 +97,8 @@ def get_bugungi_tulumlar():
             current_apt = None
             sheet_payments = []
 
+            payment_count = 0  # joriy kvartira uchun to'lovlar soni
+
             for row in ws.iter_rows(min_row=7, values_only=True):
                 if len(row) < 11:
                     continue
@@ -111,11 +113,19 @@ def get_bugungi_tulumlar():
                         'qarz': row[11],
                         'foiz': foiz_val
                     }
+                    payment_count = 0  # yangi kvartira - hisobni noldan boshla
+
                 if current_apt:
                     date_val = row[9]
                     amount = row[10]
-                    if isinstance(date_val, datetime.datetime) and date_val.date() == today and amount:
-                        sheet_payments.append({**current_apt, 'berdi': amount})
+                    if isinstance(date_val, datetime.datetime) and amount:
+                        payment_count += 1  # har bir to'lov sanab boriladi
+                        if date_val.date() == today:
+                            sheet_payments.append({
+                                **current_apt,
+                                'berdi': amount,
+                                'toliq_son': payment_count  # nechanchi to'lov
+                            })
 
             if sheet_payments:
                 text = f"🏢 {sheet_name} — {today.strftime('%d.%m.%Y')}\n{'─' * 30}\n\n"
@@ -125,6 +135,7 @@ def get_bugungi_tulumlar():
                     text += (
                         f"{i}. 👤 {p['fio']}\n"
                         f"   🏠 {p['dom']}-дом, {p['etaj']}-этаж\n"
+                        f"   🔢 {p['toliq_son']}-chi to'lov\n"
                         f"   💵 Bugun berdi:   ${p['berdi']:>10,.0f}\n"
                         f"   ✅ Jami to'lagan: ${p['tulangan']:>10,.0f}\n"
                         f"   ❌ Qolgan qarz:   ${p['qarz']:>10,.0f}\n"
