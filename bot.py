@@ -99,6 +99,7 @@ def get_bugungi_tulumlar():
             sheet_payments = []
 
             payment_count = 0  # joriy kvartira uchun to'lovlar soni
+            last_payment_date = None  # oxirgi to'lov sanasi (bugundan oldin)
 
             for row in ws.iter_rows(min_row=7, values_only=True):
                 if len(row) < 11:
@@ -116,6 +117,7 @@ def get_bugungi_tulumlar():
                         'foiz': foiz_val
                     }
                     payment_count = 0  # yangi kvartira - hisobni noldan boshla
+                    last_payment_date = None  # yangi kvartira - sanani noldan boshla
 
                 if current_apt:
                     date_val = row[9]
@@ -126,18 +128,24 @@ def get_bugungi_tulumlar():
                             sheet_payments.append({
                                 **current_apt,
                                 'berdi': amount,
-                                'toliq_son': payment_count  # nechanchi to'lov
+                                'toliq_son': payment_count,  # nechanchi to'lov
+                                'oldingi_tulov': last_payment_date  # bugundan oldingi to'lov sanasi
                             })
+                        else:
+                            last_payment_date = date_val.date()  # faqat bugundan oldingi to'lovlarni saqla
 
             if sheet_payments:
                 text = f"🏢 {sheet_name} — {today.strftime('%d.%m.%Y')}\n{'─' * 30}\n\n"
                 for i, p in enumerate(sheet_payments, 1):
                     foiz = p['foiz']
                     foiz_str = f"{foiz * 100:.0f}%" if isinstance(foiz, float) else "—"
+                    oldingi = p['oldingi_tulov']
+                    oldingi_str = oldingi.strftime("%d.%m.%Y") if oldingi else "birinchi to'lov"
                     text += (
                         f"{i}. 👤 {p['fio']}\n"
                         f"   🏠 {p['dom']}-дом, {p['etaj']}-этаж, {p['kv']}-кв\n"
                         f"   🔢 {p['toliq_son']}-chi to'lov\n"
+                        f"   📅 Oldingi to'lov: {oldingi_str}\n"
                         f"   💵 Bugun berdi:   ${p['berdi']:>10,.0f}\n"
                         f"   ✅ Jami to'lagan: ${p['tulangan']:>10,.0f}\n"
                         f"   ❌ Qolgan qarz:   ${p['qarz']:>10,.0f}\n"
