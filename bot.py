@@ -11,7 +11,7 @@ import html as html_mod
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import Application, MessageHandler, CallbackQueryHandler, CommandHandler, filters, ContextTypes
 
-BOT_TOKEN = "8847266024:AAGA00Bqrw3ekbo5TCSmusK3Yd0FU2exTsM"
+BOT_TOKEN = "8847266024:AAFxwRJjGk4siR72ajHHySGqOW9xLl3pvL8"
 ADMIN_ID = 807823872
 GROUP_ID = -1002449545348
 ONEDRIVE_URL = "https://1drv.ms/x/c/0434e9c0edef097b/IQASHiM8IYUQSZNJNl0nojFBAcv7R4dXvdm4vdX1NQN-AJw?e=38Ffl7&download=1"
