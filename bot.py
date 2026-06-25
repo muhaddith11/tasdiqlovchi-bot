@@ -7,6 +7,7 @@ import os
 import datetime
 import time
 import pytz
+import html as html_mod
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import Application, MessageHandler, CallbackQueryHandler, CommandHandler, filters, ContextTypes
 
@@ -141,9 +142,13 @@ def get_bugungi_tulumlar():
                     foiz_str = f"{foiz * 100:.0f}%" if isinstance(foiz, float) else "—"
                     oldingi = p['oldingi_tulov']
                     oldingi_str = oldingi.strftime("%d.%m.%Y") if oldingi else "birinchi to'lov"
+                    fio = html_mod.escape(str(p['fio']))
+                    dom = html_mod.escape(str(p['dom']))
+                    etaj = html_mod.escape(str(p['etaj']))
+                    kv = html_mod.escape(str(p['kv']))
                     text += (
-                        f"{i}. 👤 {p['fio']}\n"
-                        f"   🏠 {p['dom']}-дом, {p['etaj']}-этаж, {p['kv']}-кв\n"
+                        f"{i}. 👤 {fio}\n"
+                        f"   🏠 {dom}-дом, {etaj}-этаж, {kv}-кв\n"
                         f"   🔢 {p['toliq_son']}-chi to'lov\n"
                         f"   📅 Oldingi to'lov: {oldingi_str}\n"
                         f"   💵 <b>Bugun berdi:   ${p['berdi']:,.0f}</b>\n"
@@ -249,14 +254,16 @@ async def chatid_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def hisobot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = await update.message.reply_text("⏳ Yuklanmoqda...")
-    # 1. Bugungi to'lovlar
-    messages = get_bugungi_tulumlar()
-    await msg.edit_text(messages[0], parse_mode='HTML')
-    for m in messages[1:]:
-        await update.message.reply_text(m, parse_mode='HTML')
-    # 2. Kunlik tushum
-    await update.message.reply_text(get_kunlik_tushum())
+    try:
+        msg = await update.message.reply_text("⏳ Yuklanmoqda...")
+        messages = get_bugungi_tulumlar()
+        await msg.edit_text(messages[0], parse_mode='HTML')
+        for m in messages[1:]:
+            await update.message.reply_text(m, parse_mode='HTML')
+        await update.message.reply_text(get_kunlik_tushum())
+    except Exception as e:
+        logging.error(f"hisobot_command xatosi: {e}")
+        await update.message.reply_text(f"❌ Xatolik: {e}")
 
 
 async def send_daily_report(context: ContextTypes.DEFAULT_TYPE):
