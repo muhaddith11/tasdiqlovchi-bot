@@ -1,11 +1,12 @@
-from http.server import BaseHTTPRequestHandler
-import json
+from flask import Flask, request, jsonify
 import asyncio
 import os
 import psycopg2
 import html as html_mod
 
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
+
+app = Flask(__name__)
 
 BOT_TOKEN = os.environ.get('BOT_TOKEN', '')
 ADMIN_ID = int(os.environ.get('ADMIN_ID', '807823872'))
@@ -42,7 +43,7 @@ def ensure_table():
         print(f"DB init error: {e}")
 
 
-async def handle_message(bot, message):
+async def handle_group_message(bot, message):
     if not message or message.chat.type not in ['group', 'supergroup']:
         return
 
@@ -140,14 +141,6 @@ async def handle_callback(bot, query):
         pass
 
 
-async def handle_hisobot(bot, chat_id):
-    from lib.excel import get_bugungi_tulumlar, get_kunlik_tushum
-    messages = get_bugungi_tulumlar()
-    for msg in messages:
-        await bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
-    await bot.send_message(chat_id=chat_id, text=get_kunlik_tushum())
-
-
 async def process_update(data):
     bot = Bot(token=BOT_TOKEN)
     update = Update.de_json(data, bot)
@@ -155,31 +148,51 @@ async def process_update(data):
     if update.message:
         msg = update.message
         text = msg.text or msg.caption or ""
-
         if text.startswith('/hisobot'):
-            await handle_hisobot(bot, msg.chat_id)
+            from lib.excel import get_bugungi_tulumlar, get_kunlik_tushum
+            for m in get_bugungi_tulumlar():
+                await bot.send_message(chat_id=msg.chat_id, text=m, parse_mode='HTML')
+            await bot.send_message(chat_id=msg.chat_id, text=get_kunlik_tushum())
         elif text.startswith('/chatid'):
             await bot.send_message(chat_id=msg.chat_id, text=f"Chat ID: `{msg.chat_id}`", parse_mode='Markdown')
         elif any(text.startswith(cmd) for cmd in ALLOWED_COMMANDS):
-            await handle_message(bot, msg)
+            await handle_group_message(bot, msg)
 
     elif update.callback_query:
         await handle_callback(bot, update.callback_query)
 
 
-class handler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        ensure_table()
-        length = int(self.headers.get('Content-Length', 0))
-        body = self.rfile.read(length)
-        try:
-            asyncio.run(process_update(json.loads(body)))
-        except Exception as e:
-            print(f"Webhook error: {e}")
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
-        self.end_headers()
-        self.wfile.write(b'{"ok":true}')
+async def send_daily_report():
+    from lib.excel import get_bugungi_tulumlar, get_kunlik_tushum
+    bot = Bot(token=BOT_TOKEN)
+    tulumlar = get_bugungi_tulumlar()
+    tushum = get_kunlik_tushum()
+    for chat_id in [ADMIN_ID, GROUP_ID]:
+        for msg in tulumlar:
+            await bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
+        await bot.send_message(chat_id=chat_id, text=tushum)
 
-    def log_message(self, format, *args):
-        pass
+
+@app.route('/api/webhook', methods=['POST'])
+def webhook():
+    ensure_table()
+    data = request.get_json(force=True, silent=True) or {}
+    try:
+        asyncio.run(process_update(data))
+    except Exception as e:
+        print(f"Webhook error: {e}")
+    return jsonify({"ok": True})
+
+
+@app.route('/api/cron', methods=['GET'])
+def cron():
+    try:
+        asyncio.run(send_daily_report())
+    except Exception as e:
+        print(f"Cron error: {e}")
+    return jsonify({"ok": True})
+
+
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({"status": "running"})
