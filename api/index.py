@@ -323,6 +323,22 @@ def cron():
     return jsonify({"ok": True})
 
 
+@app.route('/api/check', methods=['GET'])
+def check():
+    """Vercel dagi token va sozlamalarni tekshirish"""
+    result = {}
+    result['token_last4'] = BOT_TOKEN[-4:] if BOT_TOKEN else 'YO\'Q'
+    result['admin_id'] = ADMIN_ID
+    result['group_id'] = GROUP_ID
+    result['db_set'] = bool(DATABASE_URL)
+    try:
+        me = tg('getMe')
+        result['bot'] = me.get('result', {}).get('username', me)
+    except Exception as e:
+        result['bot'] = f"xato: {e}"
+    return jsonify(result)
+
+
 @app.route('/', methods=['GET'])
 def index():
     return jsonify({"status": "running"})
