@@ -196,6 +196,7 @@ def handle_message(msg):
 
     # /hisobot — guruh yoki shaxsiy
     if text.startswith('/hisobot'):
+        send_message(chat_id, "⏳ Hisobot tayyorlanmoqda...")
         for m in get_bugungi_tulumlar():
             send_message(chat_id, m, parse_mode='HTML')
         send_message(chat_id, get_kunlik_tushum())
