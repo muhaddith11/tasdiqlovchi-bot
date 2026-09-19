@@ -149,7 +149,7 @@ def get_bugungi_tulumlar():
                 fio = row[5]
                 if fio and isinstance(fio, str) and fio.strip() and fio.strip() != 'фио':
                     cur_apt = {'fio': fio.strip(), 'kv': row[2], 'dom': row[3],
-                               'etaj': row[4], 'tulangan': row[10], 'qarz': row[11],
+                               'etaj': row[4], 'shartnoma': row[9], 'tulangan': row[10], 'qarz': row[11],
                                'foiz': row[12] if len(row) > 12 else None}
                     pay_count = 0; last_date = None
                 if cur_apt:
@@ -167,6 +167,8 @@ def get_bugungi_tulumlar():
                     foiz = p['foiz']
                     foiz_str = f"{foiz*100:.0f}%" if isinstance(foiz, float) else "—"
                     old_str = p['oldingi'].strftime("%d.%m.%Y") if p['oldingi'] else "birinchi to'lov"
+                    shartnoma = p['shartnoma']
+                    shartnoma_str = f"${shartnoma:,.0f}" if isinstance(shartnoma, (int, float)) else "—"
                     text += (
                         f"{i}. 👤 {html_mod.escape(str(p['fio']))}\n"
                         f"   🏠 {html_mod.escape(str(p['dom']))}-дом, "
@@ -174,6 +176,7 @@ def get_bugungi_tulumlar():
                         f"{html_mod.escape(str(p['kv']))}-кв\n"
                         f"   🔢 {p['toliq_son']}-chi to'lov\n"
                         f"   📅 Oldingi to'lov: {old_str}\n"
+                        f"   📄 Shartnoma summasi: {shartnoma_str}\n"
                         f"   💵 <b>Bugun berdi:   ${p['berdi']:,.0f}</b>\n"
                         f"   ✅ Jami to'lagan: ${p['tulangan']:,.0f}\n"
                         f"   ❌ Qolgan qarz:   ${p['qarz']:,.0f}\n"
