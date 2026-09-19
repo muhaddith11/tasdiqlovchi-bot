@@ -112,10 +112,10 @@ def excel_yukla():
     r = req_lib.get(url, timeout=30, headers={"Cache-Control": "no-cache"})
     return openpyxl.load_workbook(io.BytesIO(r.content), data_only=True, read_only=True)
 
-def get_kunlik_tushum():
+def get_kunlik_tushum(target_date=None):
     try:
         wb = excel_yukla()
-        today = datetime.datetime.now(TASHKENT_TZ).date()
+        today = target_date or datetime.datetime.now(TASHKENT_TZ).date()
         sheets = ['Салом сити-1', 'Салом сити-2', 'МЖК-1', 'МЖК-2']
         results = {}
         for sn in sheets:
@@ -135,10 +135,10 @@ def get_kunlik_tushum():
     except Exception as e:
         return f"❌ Xatolik: {e}"
 
-def get_bugungi_tulumlar():
+def get_bugungi_tulumlar(target_date=None):
     try:
         wb = excel_yukla()
-        today = datetime.datetime.now(TASHKENT_TZ).date()
+        today = target_date or datetime.datetime.now(TASHKENT_TZ).date()
         sheets = ['Салом сити-1', 'Салом сити-2', 'МЖК-1', 'МЖК-2']
         messages = []
         for sn in sheets:
@@ -197,12 +197,20 @@ def handle_message(msg):
     chat_id = msg['chat']['id']
     msg_id = msg['message_id']
 
-    # /hisobot — guruh yoki shaxsiy
+    # /hisobot — guruh yoki shaxsiy. Sana kiritsa: /hisobot 18.09.2026
     if text.startswith('/hisobot'):
+        parts = text.split()
+        target_date = None
+        if len(parts) > 1:
+            try:
+                target_date = datetime.datetime.strptime(parts[1], "%d.%m.%Y").date()
+            except ValueError:
+                send_message(chat_id, "❌ Sana formati xato. Namuna: /hisobot 18.09.2026")
+                return
         send_message(chat_id, "⏳ Hisobot tayyorlanmoqda...")
-        for m in get_bugungi_tulumlar():
+        for m in get_bugungi_tulumlar(target_date):
             send_message(chat_id, m, parse_mode='HTML')
-        send_message(chat_id, get_kunlik_tushum())
+        send_message(chat_id, get_kunlik_tushum(target_date))
         return
 
     # /chatid
