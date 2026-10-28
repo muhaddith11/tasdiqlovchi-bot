@@ -15,6 +15,8 @@ app = Flask(__name__)
 BOT_TOKEN   = os.environ.get('BOT_TOKEN', '')
 ADMIN_ID    = int(os.environ.get('ADMIN_ID', '807823872'))
 GROUP_ID    = int(os.environ.get('GROUP_ID', '-1002449545348'))
+# Faqat shu ID uchun: 50% xabarnomalari va "50% dan o'tganlar" tugmasi
+SPECIAL_ID  = int(os.environ.get('SPECIAL_ID', '807823872'))
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 ONEDRIVE_URL = os.environ.get('ONEDRIVE_URL',
     'https://1drv.ms/x/c/0434e9c0edef097b/IQASHiM8IYUQSZNJNl0nojFBAcv7R4dXvdm4vdX1NQN-AJw?e=38Ffl7&download=1')
@@ -135,56 +137,149 @@ def get_kunlik_tushum(target_date=None):
     except Exception as e:
         return f"❌ Xatolik: {e}"
 
+def scan_today(target_date=None):
+    """Bugungi to'lovlarni strukturali qaytaradi. Har bir to'lovga:
+       - crossed_50: shu to'lov bilan jami to'lov 50% dan ENDI o'tdimi
+       - cum_after: shu to'lovdan keyingi jami to'lov summasi"""
+    wb = excel_yukla()
+    today = target_date or datetime.datetime.now(TASHKENT_TZ).date()
+    sheets = ['Салом сити-1', 'Салом сити-2', 'МЖК-1', 'МЖК-2']
+    out = []
+    for sn in sheets:
+        ws = wb[sn]
+        cur_apt = None; payments = []; pay_count = 0; last_date = None; cum = 0.0
+        for row in ws.iter_rows(min_row=7, values_only=True):
+            if len(row) < 11: continue
+            fio = row[5]
+            if fio and isinstance(fio, str) and fio.strip() and fio.strip() != 'фио':
+                cur_apt = {'fio': fio.strip(), 'kv': row[2], 'dom': row[3],
+                           'etaj': row[4], 'shartnoma': row[9], 'tulangan': row[10], 'qarz': row[11],
+                           'foiz': row[12] if len(row) > 12 else None}
+                pay_count = 0; last_date = None; cum = 0.0
+            if cur_apt:
+                dv = row[9]; am = row[10]
+                if isinstance(dv, datetime.datetime) and am:
+                    pay_count += 1
+                    before = cum; after = cum + am; cum = after
+                    if dv.date() == today:
+                        sh = cur_apt['shartnoma']
+                        crossed = isinstance(sh, (int, float)) and sh > 0 and before < 0.5 * sh <= after
+                        payments.append({**cur_apt, 'berdi': am, 'toliq_son': pay_count,
+                                         'oldingi': last_date, 'crossed_50': crossed, 'cum_after': after})
+                    else:
+                        last_date = dv.date()
+        out.append((sn, payments))
+    return today, out
+
+
 def get_bugungi_tulumlar(target_date=None):
     try:
+        today, out = scan_today(target_date)
+        messages = []
+        for sn, payments in out:
+            if not payments:
+                continue
+            text = f"🏢 {sn} — {today.strftime('%d.%m.%Y')}\n{'─'*30}\n\n"
+            for i, p in enumerate(payments, 1):
+                foiz = p['foiz']
+                foiz_str = f"{foiz*100:.0f}%" if isinstance(foiz, float) else "—"
+                old_str = p['oldingi'].strftime("%d.%m.%Y") if p['oldingi'] else "birinchi to'lov"
+                shartnoma = p['shartnoma']
+                shartnoma_str = f"${shartnoma:,.0f}" if isinstance(shartnoma, (int, float)) else "—"
+                belgi = "   🎉 <b>50% dan o'tti!</b>\n" if p.get('crossed_50') else ""
+                text += (
+                    f"{i}. 👤 {html_mod.escape(str(p['fio']))}\n"
+                    f"   🏠 {html_mod.escape(str(p['dom']))}-дом, "
+                    f"{html_mod.escape(str(p['etaj']))}-этаж, "
+                    f"{html_mod.escape(str(p['kv']))}-кв\n"
+                    f"   🔢 {p['toliq_son']}-chi to'lov\n"
+                    f"   📅 Oldingi to'lov: {old_str}\n"
+                    f"   📄 Shartnoma summasi: {shartnoma_str}\n"
+                    f"   💵 <b>Bugun berdi:   ${p['berdi']:,.0f}</b>\n"
+                    f"   ✅ Jami to'lagan: ${p['tulangan']:,.0f}\n"
+                    f"   ❌ Qolgan qarz:   ${p['qarz']:,.0f}\n"
+                    f"   📊 Foizda: {foiz_str}\n"
+                    f"{belgi}\n"
+                )
+            text += f"{'─'*30}\nJami: {len(payments)} ta to'lov"
+            messages.append(text)
+        return messages if messages else ["📭 Bugun hech qanday to'lov kiritilmagan"]
+    except Exception as e:
+        return [f"❌ Xatolik: {e}"]
+
+
+def get_50_alerts(target_date=None):
+    """Bugun 50% dan ENDI o'tgan mijozlar uchun alohida xabarlar (faqat SPECIAL_ID uchun)."""
+    try:
+        today, out = scan_today(target_date)
+        alerts = []
+        for sn, payments in out:
+            for p in payments:
+                if not p.get('crossed_50'):
+                    continue
+                sh = p['shartnoma']
+                pct = (p['cum_after'] / sh * 100) if isinstance(sh, (int, float)) and sh else 0
+                alerts.append(
+                    f"🎉 <b>50% dan o'tti!</b>\n"
+                    f"🏢 {sn}\n"
+                    f"👤 {html_mod.escape(str(p['fio']))}\n"
+                    f"🏠 {html_mod.escape(str(p['dom']))}-дом, "
+                    f"{html_mod.escape(str(p['etaj']))}-этаж, "
+                    f"{html_mod.escape(str(p['kv']))}-кв\n"
+                    f"📄 Shartnoma: ${sh:,.0f}\n"
+                    f"💵 Bugun berdi: ${p['berdi']:,.0f}\n"
+                    f"✅ Jami to'lagan: ${p['tulangan']:,.0f}\n"
+                    f"📊 Hozir: {pct:.0f}%"
+                )
+        return alerts
+    except Exception as e:
+        print(f"50 alert xatosi: {e}")
+        return []
+
+
+def get_all_50_percent():
+    """Barcha varaqlardan 50% va undan yuqori to'lagan mijozlar ro'yxati."""
+    try:
         wb = excel_yukla()
-        today = target_date or datetime.datetime.now(TASHKENT_TZ).date()
         sheets = ['Салом сити-1', 'Салом сити-2', 'МЖК-1', 'МЖК-2']
         messages = []
         for sn in sheets:
             ws = wb[sn]
-            cur_apt = None; payments = []; pay_count = 0; last_date = None
+            rows_out = []
             for row in ws.iter_rows(min_row=7, values_only=True):
-                if len(row) < 11: continue
+                if len(row) < 13: continue
                 fio = row[5]
                 if fio and isinstance(fio, str) and fio.strip() and fio.strip() != 'фио':
-                    cur_apt = {'fio': fio.strip(), 'kv': row[2], 'dom': row[3],
-                               'etaj': row[4], 'shartnoma': row[9], 'tulangan': row[10], 'qarz': row[11],
-                               'foiz': row[12] if len(row) > 12 else None}
-                    pay_count = 0; last_date = None
-                if cur_apt:
-                    dv = row[9]; am = row[10]
-                    if isinstance(dv, datetime.datetime) and am:
-                        pay_count += 1
-                        if dv.date() == today:
-                            payments.append({**cur_apt, 'berdi': am,
-                                             'toliq_son': pay_count, 'oldingi': last_date})
-                        else:
-                            last_date = dv.date()
-            if payments:
-                text = f"🏢 {sn} — {today.strftime('%d.%m.%Y')}\n{'─'*30}\n\n"
-                for i, p in enumerate(payments, 1):
-                    foiz = p['foiz']
-                    foiz_str = f"{foiz*100:.0f}%" if isinstance(foiz, float) else "—"
-                    old_str = p['oldingi'].strftime("%d.%m.%Y") if p['oldingi'] else "birinchi to'lov"
-                    shartnoma = p['shartnoma']
-                    shartnoma_str = f"${shartnoma:,.0f}" if isinstance(shartnoma, (int, float)) else "—"
-                    text += (
-                        f"{i}. 👤 {html_mod.escape(str(p['fio']))}\n"
-                        f"   🏠 {html_mod.escape(str(p['dom']))}-дом, "
-                        f"{html_mod.escape(str(p['etaj']))}-этаж, "
-                        f"{html_mod.escape(str(p['kv']))}-кв\n"
-                        f"   🔢 {p['toliq_son']}-chi to'lov\n"
-                        f"   📅 Oldingi to'lov: {old_str}\n"
-                        f"   📄 Shartnoma summasi: {shartnoma_str}\n"
-                        f"   💵 <b>Bugun berdi:   ${p['berdi']:,.0f}</b>\n"
-                        f"   ✅ Jami to'lagan: ${p['tulangan']:,.0f}\n"
-                        f"   ❌ Qolgan qarz:   ${p['qarz']:,.0f}\n"
-                        f"   📊 Foizda: {foiz_str}\n\n"
-                    )
-                text += f"{'─'*30}\nJami: {len(payments)} ta to'lov"
+                    foiz = row[12]
+                    if isinstance(foiz, (int, float)) and foiz >= 0.5:
+                        rows_out.append({'fio': fio.strip(), 'kv': row[2], 'dom': row[3],
+                                         'etaj': row[4], 'shartnoma': row[9],
+                                         'tulangan': row[10], 'qarz': row[11], 'foiz': foiz})
+            if not rows_out:
+                continue
+            rows_out.sort(key=lambda x: x['foiz'], reverse=True)
+            header = f"🏢 {sn} — 50% dan o'tganlar ({len(rows_out)} ta)\n{'─'*30}\n\n"
+            text = header
+            for i, p in enumerate(rows_out, 1):
+                sh = p['shartnoma']
+                sh_str = f"${sh:,.0f}" if isinstance(sh, (int, float)) else "—"
+                block = (
+                    f"{i}. 👤 {html_mod.escape(str(p['fio']))}\n"
+                    f"   🏠 {html_mod.escape(str(p['dom']))}-дом, "
+                    f"{html_mod.escape(str(p['etaj']))}-этаж, "
+                    f"{html_mod.escape(str(p['kv']))}-кв\n"
+                    f"   📄 Shartnoma: {sh_str}\n"
+                    f"   ✅ To'lagan: ${p['tulangan']:,.0f}\n"
+                    f"   ❌ Qarz: ${p['qarz']:,.0f}\n"
+                    f"   📊 Foizda: {p['foiz']*100:.0f}%\n\n"
+                )
+                if len(text) + len(block) > 3800:
+                    messages.append(text)
+                    text = ""
+                text += block
+            if text.strip():
                 messages.append(text)
-        return messages if messages else ["📭 Bugun hech qanday to'lov kiritilmagan"]
+        return messages if messages else ["📭 50% dan o'tgan mijoz yo'q"]
     except Exception as e:
         return [f"❌ Xatolik: {e}"]
 
@@ -211,6 +306,14 @@ def handle_message(msg):
         for m in get_bugungi_tulumlar(target_date):
             send_message(chat_id, m, parse_mode='HTML')
         send_message(chat_id, get_kunlik_tushum(target_date))
+        # Faqat SPECIAL_ID uchun: 50% dan o'tganlar xabari + tugma
+        if chat_id == SPECIAL_ID:
+            for a in get_50_alerts(target_date):
+                send_message(chat_id, a, parse_mode='HTML')
+            btn = {'inline_keyboard': [[
+                {'text': "📊 50% dan o'tganlar ro'yxati", 'callback_data': 'list50'}
+            ]]}
+            send_message(chat_id, "👇 Barcha 50% dan o'tgan mijozlar ro'yxatini olish:", reply_markup=btn)
         return
 
     # /chatid
@@ -267,6 +370,16 @@ def handle_message(msg):
 def handle_callback(cq):
     answer_callback(cq['id'])
     data = cq.get('data', '')
+    cb_chat_id = cq.get('message', {}).get('chat', {}).get('id')
+
+    # 50% dan o'tganlar ro'yxati tugmasi — faqat SPECIAL_ID uchun
+    if data == 'list50':
+        if cb_chat_id == SPECIAL_ID:
+            send_message(cb_chat_id, "⏳ Ro'yxat tayyorlanmoqda...")
+            for m in get_all_50_percent():
+                send_message(cb_chat_id, m, parse_mode='HTML')
+        return
+
     parts = data.split('_', 1)
     if len(parts) != 2:
         return
@@ -329,6 +442,9 @@ def cron():
             for m in tulumlar:
                 send_message(chat_id, m, parse_mode='HTML')
             send_message(chat_id, tushum)
+        # Faqat SPECIAL_ID ga: bugun 50% dan o'tganlar xabari
+        for a in get_50_alerts():
+            send_message(SPECIAL_ID, a, parse_mode='HTML')
     except Exception as e:
         print(f"Cron error: {e}")
     return jsonify({"ok": True})
